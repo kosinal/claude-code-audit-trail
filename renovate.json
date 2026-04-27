@@ -11,13 +11,11 @@
   "packageRules": [
     {
       "matchManagers": ["npm"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "npm non-major"
+      "groupName": "npm dependencies"
     },
     {
       "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch"],
-      "groupName": "github-actions non-major"
+      "groupName": "github-actions"
     }
   ]
 }
