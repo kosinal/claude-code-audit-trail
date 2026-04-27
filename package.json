@@ -1,0 +1,53 @@
+{
+  "name": "@kosinal/claude-code-audit-trail",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Audit trail for Claude Code: persist every user prompt with session, directory, and git context to a JSON file.",
+  "bin": {
+    "claude-code-audit-trail": "dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "node --experimental-strip-types --test src/**/*.test.ts",
+    "lint": "biome check src/ tsup.config.ts",
+    "lint:fix": "biome check --write src/ tsup.config.ts",
+    "format": "biome format --write src/ tsup.config.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.4",
+    "@types/adm-zip": "^0.5.7",
+    "@types/node": "^22.10.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "audit",
+    "audit-trail",
+    "logging",
+    "hooks"
+  ],
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kosinal/claude-code-audit-trail.git"
+  },
+  "homepage": "https://github.com/kosinal/claude-code-audit-trail#readme",
+  "bugs": {
+    "url": "https://github.com/kosinal/claude-code-audit-trail/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

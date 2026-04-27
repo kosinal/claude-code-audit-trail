@@ -1,0 +1,98 @@
+name: Release Version Sync
+
+on:
+  push:
+    branches: ['release/**']
+  pull_request:
+    types: [opened]
+    branches: [master, main]
+
+concurrency:
+  group: release-version-sync-${{ github.event_name == 'push' && github.ref_name || github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync-version:
+    if: >-
+      github.event_name == 'push'
+      || startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      BRANCH: ${{ github.event_name == 'push' && github.ref_name || github.event.pull_request.head.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Extract version from branch name
+        id: branch
+        run: |
+          BRANCH="${{ env.BRANCH }}"
+          VERSION="${BRANCH#release/}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::Invalid semver in branch name: '$VERSION'"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Read current version from package.json
+        id: pkg
+        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          if [ "${{ steps.branch.outputs.version }}" = "${{ steps.pkg.outputs.version }}" ]; then
+            echo "Versions already match (${{ steps.pkg.outputs.version }}), nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version mismatch: branch=${{ steps.branch.outputs.version }} package.json=${{ steps.pkg.outputs.version }}"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update package.json version
+        if: steps.compare.outputs.skip == 'false'
+        run: npm version "${{ steps.branch.outputs.version }}" --no-git-tag-version
+
+      - name: Update package-lock.json
+        if: steps.compare.outputs.skip == 'false'
+        run: npm install --package-lock-only
+
+      - name: Commit and push
+        if: steps.compare.outputs.skip == 'false'
+        run: |
+          VERSION="${{ steps.branch.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "Release: $VERSION"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or update pull request
+        if: github.event_name == 'push'
+        run: |
+          VERSION="${{ steps.branch.outputs.version }}"
+          BASE="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)"
+          EXISTING=$(gh pr list --head "${{ env.BRANCH }}" --base "$BASE" --json number -q '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "PR #$EXISTING already exists for this branch."
+          else
+            gh pr create \
+              --base "$BASE" \
+              --head "${{ env.BRANCH }}" \
+              --title "Release: $VERSION" \
+              --body "Automated release PR for v$VERSION."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
