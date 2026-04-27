@@ -26,9 +26,9 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.13",
     "@types/adm-zip": "^0.5.7",
-    "@types/node": "^22.10.0",
+    "@types/node": "^24.0.0",
     "tsup": "^8.3.0",
-    "typescript": "^5.7.0"
+    "typescript": "^6.0.0"
   },
   "keywords": [
     "claude",
