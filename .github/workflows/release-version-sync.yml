@@ -17,16 +17,24 @@ jobs:
       github.event_name == 'push'
       || startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     env:
       BRANCH: ${{ github.event_name == 'push' && github.ref_name || github.event.pull_request.head.ref }}
     steps:
+      # First checkout: needed to resolve the local composite action.
+      - uses: actions/checkout@v4
+
+      - id: app-token
+        uses: ./.github/actions/app-token
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      # Re-checkout the target branch with the App token so subsequent
+      # `git push` is authenticated as the bot.
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.BRANCH }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -71,13 +79,13 @@ jobs:
         if: steps.compare.outputs.skip == 'false'
         run: |
           VERSION="${{ steps.branch.outputs.version }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "${{ vars.APP_SLUG }}[bot]"
+          git config user.email "${{ vars.APP_SLUG }}[bot]@users.noreply.github.com"
           git add package.json package-lock.json
           git commit -m "Release: $VERSION"
           git push
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
 
       - name: Create or update pull request
         if: github.event_name == 'push'
@@ -95,4 +103,4 @@ jobs:
               --body "Automated release PR for v$VERSION."
           fi
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}

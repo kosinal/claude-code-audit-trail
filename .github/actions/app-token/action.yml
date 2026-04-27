@@ -1,0 +1,30 @@
+name: Mint release-bot installation token
+description: >-
+  Exchanges the App's Client ID + private key for a short-lived installation
+  access token scoped to this repository. Wrapper around
+  actions/create-github-app-token@v1.
+inputs:
+  client-id:
+    description: GitHub App Client ID.
+    required: true
+  private-key:
+    description: GitHub App private key (PEM).
+    required: true
+outputs:
+  token:
+    description: Installation access token (1-hour TTL, auto-revoked post-job).
+    value: ${{ steps.mint.outputs.token }}
+  app-slug:
+    description: App slug, e.g. claude-code-dashboard-release-bot.
+    value: ${{ steps.mint.outputs.app-slug }}
+  installation-id:
+    description: Installation ID for the current repo.
+    value: ${{ steps.mint.outputs.installation-id }}
+runs:
+  using: composite
+  steps:
+    - id: mint
+      uses: actions/create-github-app-token@v1
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
