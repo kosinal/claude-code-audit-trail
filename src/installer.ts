@@ -5,8 +5,17 @@ import { ensureDestLayout, writeConfig } from "./config.ts";
 import { installSkill, uninstallSkill } from "./skill.ts";
 
 export const HOOK_MARKER = "__claude_code_audit_trail__";
-const HOOK_EVENT = "UserPromptSubmit";
 const HOOK_COMMAND = "npx -y @kosinal/claude-code-audit-trail hook";
+
+interface HookRegistration {
+  event: string;
+  matcher?: string;
+}
+
+const HOOK_REGISTRATIONS: HookRegistration[] = [
+  { event: "UserPromptSubmit" },
+  { event: "PostToolUse", matcher: "AskUserQuestion|ExitPlanMode" },
+];
 
 interface HookEntry {
   type: string;
@@ -107,18 +116,22 @@ export function install(opts: InstallOptions): InstallResult {
   stripExistingMarker(settings);
 
   if (!settings.hooks) settings.hooks = {};
-  if (!settings.hooks[HOOK_EVENT]) settings.hooks[HOOK_EVENT] = [];
-
-  settings.hooks[HOOK_EVENT].push({
-    hooks: [
-      {
-        type: "command",
-        command: HOOK_COMMAND,
-        async: true,
-        statusMessage: HOOK_MARKER,
-      },
-    ],
-  });
+  for (const reg of HOOK_REGISTRATIONS) {
+    const groups = settings.hooks[reg.event] ?? [];
+    const group: MatcherGroup = {
+      hooks: [
+        {
+          type: "command",
+          command: HOOK_COMMAND,
+          async: true,
+          statusMessage: HOOK_MARKER,
+        },
+      ],
+    };
+    if (reg.matcher) group.matcher = reg.matcher;
+    groups.push(group);
+    settings.hooks[reg.event] = groups;
+  }
 
   writeSettings(settings);
   const skill = installSkill();

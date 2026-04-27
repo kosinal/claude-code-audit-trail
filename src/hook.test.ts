@@ -36,6 +36,7 @@ describe("processPayload", () => {
       assert.equal(entry.message, "hello world");
       assert.equal(entry.directory, path.normalize(projectDir));
       assert.equal(entry.git, null);
+      assert.equal(entry.event_type, "user_prompt");
       assert.match(String(entry.timestamp), /^\d{4}-\d{2}-\d{2}T/);
     } finally {
       fs.rmSync(projectDir, { recursive: true, force: true });
@@ -93,5 +94,98 @@ describe("processPayload", () => {
     assert.ok(written);
     const entry = JSON.parse(fs.readFileSync(written, "utf-8")) as Record<string, unknown>;
     assert.equal(entry.session_name, "unknown");
+  });
+
+  it("records AskUserQuestion answers as a tool_answer entry", () => {
+    const written = processPayload(
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        session_id: "session-q",
+        tool_name: "AskUserQuestion",
+        tool_input: {
+          questions: [{ question: "Which framework?" }],
+          answers: { "Which framework?": "React" },
+        },
+        tool_response: {},
+      }),
+      dest,
+    );
+    assert.ok(written, "expected an entry to be written");
+    const entry = JSON.parse(fs.readFileSync(written, "utf-8")) as Record<string, unknown>;
+    assert.equal(entry.event_type, "tool_answer");
+    assert.equal(entry.tool_name, "AskUserQuestion");
+    assert.equal(entry.message, JSON.stringify({ "Which framework?": "React" }));
+  });
+
+  it("records ExitPlanMode rejection feedback as a tool_answer entry", () => {
+    const written = processPayload(
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        session_id: "session-r",
+        tool_name: "ExitPlanMode",
+        tool_input: { plan: "step 1\nstep 2" },
+        tool_response: { user_response: "split this into smaller PRs" },
+      }),
+      dest,
+    );
+    assert.ok(written, "expected an entry to be written");
+    const entry = JSON.parse(fs.readFileSync(written, "utf-8")) as Record<string, unknown>;
+    assert.equal(entry.event_type, "tool_answer");
+    assert.equal(entry.tool_name, "ExitPlanMode");
+    assert.equal(entry.message, "split this into smaller PRs");
+  });
+
+  it("does not record ExitPlanMode without user-typed feedback", () => {
+    const written = processPayload(
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        session_id: "session-a",
+        tool_name: "ExitPlanMode",
+        tool_input: { plan: "the plan" },
+        tool_response: {},
+      }),
+      dest,
+    );
+    assert.equal(written, null);
+    assert.equal(fs.readdirSync(dest).filter((f) => f.endsWith(".json")).length, 0);
+  });
+
+  it("does not record AskUserQuestion when answers are missing or empty", () => {
+    const writtenMissing = processPayload(
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        tool_name: "AskUserQuestion",
+        tool_input: { questions: [] },
+        tool_response: {},
+      }),
+      dest,
+    );
+    assert.equal(writtenMissing, null);
+
+    const writtenEmpty = processPayload(
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        tool_name: "AskUserQuestion",
+        tool_input: { answers: {} },
+        tool_response: {},
+      }),
+      dest,
+    );
+    assert.equal(writtenEmpty, null);
+    assert.equal(fs.readdirSync(dest).filter((f) => f.endsWith(".json")).length, 0);
+  });
+
+  it("ignores PostToolUse for untracked tools", () => {
+    const written = processPayload(
+      JSON.stringify({
+        hook_event_name: "PostToolUse",
+        tool_name: "Bash",
+        tool_input: { command: "ls" },
+        tool_response: { stdout: "file" },
+      }),
+      dest,
+    );
+    assert.equal(written, null);
+    assert.equal(fs.readdirSync(dest).filter((f) => f.endsWith(".json")).length, 0);
   });
 });

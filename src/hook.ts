@@ -11,15 +11,26 @@ interface HookPayload {
   prompt?: string;
   hook_event_name?: string;
   transcript_path?: string;
+  tool_name?: string;
+  tool_input?: unknown;
+  tool_response?: unknown;
 }
+
+export type EventType = "user_prompt" | "tool_answer";
 
 export interface AuditEntry {
   timestamp: string;
   session_name: string;
   directory: string;
   git: GitInfo | null;
+  event_type: EventType;
   message: string;
+  tool_name?: string;
+  tool_input?: unknown;
+  tool_response?: unknown;
 }
+
+const TRACKED_TOOLS = new Set(["AskUserQuestion", "ExitPlanMode"]);
 
 /**
  * Reads a Claude Code hook payload from stdin and writes one audit entry.
@@ -34,8 +45,7 @@ export async function runHook(): Promise<number> {
       return 0;
     }
     const raw = await readStdin();
-    const written = processPayload(raw, config.destDir);
-    if (!written) return 0;
+    processPayload(raw, config.destDir);
     return 0;
   } catch (err) {
     process.stderr.write(`audit-trail hook error: ${formatError(err)}\n`);
@@ -49,15 +59,80 @@ export async function runHook(): Promise<number> {
  */
 export function processPayload(raw: string, destDir: string): string | null {
   const payload = parsePayload(raw);
+  const event = payload.hook_event_name;
+
+  if (event === "PostToolUse") {
+    return processToolEvent(payload, destDir);
+  }
+  // Default: treat as UserPromptSubmit (also covers absent event for back-compat).
+  return processUserPrompt(payload, destDir);
+}
+
+function processUserPrompt(payload: HookPayload, destDir: string): string | null {
   const directory = normalizeCwd(payload.cwd ?? process.cwd());
   const entry: AuditEntry = {
     timestamp: new Date().toISOString(),
     session_name: payload.session_id ?? "unknown",
     directory,
     git: collectGitInfo(directory),
+    event_type: "user_prompt",
     message: payload.prompt ?? "",
   };
   return writeEntry(destDir, entry);
+}
+
+function processToolEvent(payload: HookPayload, destDir: string): string | null {
+  const toolName = payload.tool_name;
+  if (!toolName || !TRACKED_TOOLS.has(toolName)) return null;
+
+  const message = extractUserText(toolName, payload.tool_input, payload.tool_response);
+  if (!message) return null;
+
+  const directory = normalizeCwd(payload.cwd ?? process.cwd());
+  const entry: AuditEntry = {
+    timestamp: new Date().toISOString(),
+    session_name: payload.session_id ?? "unknown",
+    directory,
+    git: collectGitInfo(directory),
+    event_type: "tool_answer",
+    message,
+    tool_name: toolName,
+    tool_input: payload.tool_input,
+    tool_response: payload.tool_response,
+  };
+  return writeEntry(destDir, entry);
+}
+
+function extractUserText(toolName: string, input: unknown, response: unknown): string | null {
+  if (toolName === "AskUserQuestion") {
+    return extractAnswers(input) ?? extractAnswers(response);
+  }
+  if (toolName === "ExitPlanMode") {
+    return extractRejectionFeedback(response);
+  }
+  return null;
+}
+
+function extractAnswers(value: unknown): string | null {
+  if (typeof value !== "object" || value === null) return null;
+  const answers = (value as Record<string, unknown>).answers;
+  if (typeof answers !== "object" || answers === null) return null;
+  const keys = Object.keys(answers as Record<string, unknown>);
+  if (keys.length === 0) return null;
+  return JSON.stringify(answers);
+}
+
+const REJECTION_FEEDBACK_FIELDS = ["user_response", "feedback", "reason", "message"];
+
+function extractRejectionFeedback(response: unknown): string | null {
+  if (typeof response === "object" && response !== null) {
+    const obj = response as Record<string, unknown>;
+    for (const key of REJECTION_FEEDBACK_FIELDS) {
+      const v = obj[key];
+      if (typeof v === "string" && v.trim().length > 0) return v;
+    }
+  }
+  return null;
 }
 
 function readStdin(): Promise<string> {
