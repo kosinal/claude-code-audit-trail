@@ -12,7 +12,7 @@ The installer:
 
 - Prompts for a destination folder (default: `~/.claude/audit-trail/`).
 - Creates the folder and an `archives/` subfolder.
-- Adds a `UserPromptSubmit` hook to `~/.claude/settings.json`.
+- Adds a `UserPromptSubmit` hook and a `PostToolUse` hook (matching `AskUserQuestion|ExitPlanMode`) to `~/.claude/settings.json`.
 - Drops an `audit-log-compact` skill into `~/.claude/skills/`.
 
 You can pass a destination non-interactively:
@@ -23,13 +23,15 @@ npx @kosinal/claude-code-audit-trail install --dest /path/to/audit
 
 ## What gets recorded
 
-Each prompt produces one file in the destination folder:
+Each captured interaction produces one file in the destination folder:
 
 ```
 {destDir}/2026-04-27T12-34-56-789Z__<session-id>.json
 ```
 
-with this body:
+Two kinds of entries are written, distinguished by `event_type`:
+
+### `user_prompt` — every prompt the user types
 
 ```json
 {
@@ -46,7 +48,29 @@ with this body:
     },
     "worktree_name": "feature-x"
   },
+  "event_type": "user_prompt",
   "message": "the user prompt"
+}
+```
+
+### `tool_answer` — answers the user gives Claude through the UI
+
+Captured for two tools:
+
+- **`AskUserQuestion`** — whenever Claude asks a structured question and the user picks an answer.
+- **`ExitPlanMode`** — only when the user **rejects** a plan and types feedback. Plain approvals are not logged.
+
+```json
+{
+  "timestamp": "2026-04-27T12:34:56.789Z",
+  "session_name": "abc123…",
+  "directory": "/Users/me/projects/foo",
+  "git": { "...": "..." },
+  "event_type": "tool_answer",
+  "tool_name": "AskUserQuestion",
+  "tool_input": { "...": "..." },
+  "tool_response": { "...": "..." },
+  "message": "{\"Which framework?\":\"React\"}"
 }
 ```
 

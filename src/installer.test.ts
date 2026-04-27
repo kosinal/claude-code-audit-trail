@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 interface Settings {
-  hooks?: Record<string, Array<{ hooks: Array<Record<string, unknown>> }>>;
+  hooks?: Record<string, Array<{ matcher?: string; hooks: Array<Record<string, unknown>> }>>;
 }
 
 function readSettings(): Settings {
@@ -57,6 +57,14 @@ describe("install", () => {
     assert.equal(hook.statusMessage, HOOK_MARKER);
     assert.equal(hook.type, "command");
     assert.match(String(hook.command), /audit-trail hook/);
+
+    const postToolHooks = settings.hooks?.PostToolUse ?? [];
+    assert.equal(postToolHooks.length, 1);
+    assert.equal(postToolHooks[0]?.matcher, "AskUserQuestion|ExitPlanMode");
+    const postHook = postToolHooks[0]?.hooks[0];
+    assert.ok(postHook);
+    assert.equal(postHook.statusMessage, HOOK_MARKER);
+    assert.match(String(postHook.command), /audit-trail hook/);
   });
 
   it("preserves existing unrelated hooks", () => {
@@ -87,9 +95,11 @@ describe("install", () => {
     install({ destDir: dest, packageVersion: "1.0.1" });
 
     const settings = readSettings();
-    const all = (settings.hooks?.UserPromptSubmit ?? []).flatMap((g) => g.hooks);
-    const ours = all.filter((h) => h.statusMessage === HOOK_MARKER);
-    assert.equal(ours.length, 1);
+    for (const event of ["UserPromptSubmit", "PostToolUse"]) {
+      const all = (settings.hooks?.[event] ?? []).flatMap((g) => g.hooks);
+      const ours = all.filter((h) => h.statusMessage === HOOK_MARKER);
+      assert.equal(ours.length, 1, `expected exactly one marked hook under ${event}`);
+    }
   });
 });
 
@@ -100,8 +110,10 @@ describe("uninstall", () => {
     assert.equal(r.hookRemoved, true);
 
     const settings = readSettings();
-    const all = (settings.hooks?.UserPromptSubmit ?? []).flatMap((g) => g.hooks);
-    assert.equal(all.filter((h) => h.statusMessage === HOOK_MARKER).length, 0);
+    for (const event of ["UserPromptSubmit", "PostToolUse"]) {
+      const all = (settings.hooks?.[event] ?? []).flatMap((g) => g.hooks);
+      assert.equal(all.filter((h) => h.statusMessage === HOOK_MARKER).length, 0);
+    }
   });
 
   it("preserves the audit data folder", () => {
