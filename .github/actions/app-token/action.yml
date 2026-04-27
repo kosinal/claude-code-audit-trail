@@ -2,7 +2,7 @@ name: Mint release-bot installation token
 description: >-
   Exchanges the App's Client ID + private key for a short-lived installation
   access token scoped to this repository. Wrapper around
-  actions/create-github-app-token@v1.
+  actions/create-github-app-token@v3.
 inputs:
   client-id:
     description: GitHub App Client ID.
@@ -24,7 +24,7 @@ runs:
   using: composite
   steps:
     - id: mint
-      uses: actions/create-github-app-token@v1
+      uses: actions/create-github-app-token@v3
       with:
         client-id: ${{ inputs.client-id }}
         private-key: ${{ inputs.private-key }}
