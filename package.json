@@ -1,6 +1,6 @@
 {
   "name": "@kosinal/claude-code-audit-trail",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Audit trail for Claude Code: persist every user prompt with session, directory, and git context to a JSON file.",
   "bin": {
