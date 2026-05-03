@@ -101,6 +101,23 @@ describe("compact", () => {
     assert.ok(r.archivePath);
   });
 
+  it("excludes config.json even when it sits in destDir", () => {
+    fs.writeFileSync(
+      path.join(dest, "config.json"),
+      JSON.stringify({ destDir: dest, version: "0.0.0-test" }),
+    );
+    writeEntry("a.json", "2026-04-27T10:00:00.000Z");
+
+    const r = compact();
+    assert.equal(r.archived, 1);
+    assert.ok(r.archivePath);
+    assert.ok(fs.existsSync(path.join(dest, "config.json")));
+
+    const zip = new AdmZip(r.archivePath);
+    const names = zip.getEntries().map((e) => e.entryName);
+    assert.ok(!names.includes("config.json"));
+  });
+
   it("creates a unique archive path on collision", () => {
     writeEntry("a.json", "2026-04-25T10:00:00.000Z");
     writeEntry("b.json", "2026-04-25T10:00:00.000Z");
