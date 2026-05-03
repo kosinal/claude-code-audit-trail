@@ -18,8 +18,8 @@ interface EntryRef {
 
 /**
  * Zips every `*.json` audit entry in the destination folder (excluding the
- * `archives/` subdir) into a single archive named with the first/last
- * timestamps, then deletes the originals on success.
+ * `archives/` subdir and `config.json`) into a single archive named with the
+ * first/last timestamps, then deletes the originals on success.
  */
 export function compact(now: () => Date = () => new Date()): CompactResult {
   const config = readConfig();
@@ -96,6 +96,7 @@ function collectEntries(destDir: string): EntryRef[] {
   }
   for (const name of names) {
     if (!name.endsWith(".json")) continue;
+    if (name === "config.json") continue;
     const filePath = path.join(destDir, name);
     if (path.resolve(filePath).startsWith(archDir + path.sep)) continue;
     let stat: fs.Stats;
