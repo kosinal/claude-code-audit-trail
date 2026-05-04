@@ -24,7 +24,7 @@
     "adm-zip": "^0.5.16"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.13",
+    "@biomejs/biome": "2.4.14",
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^24.0.0",
     "tsup": "^8.3.0",
