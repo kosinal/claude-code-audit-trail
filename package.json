@@ -21,10 +21,10 @@
     "node": ">=20"
   },
   "dependencies": {
-    "adm-zip": "^0.5.16"
+    "adm-zip": "^0.6.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.15",
+    "@biomejs/biome": "2.5.13",
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^24.0.0",
     "tsup": "^8.3.0",
